@@ -255,10 +255,24 @@ function startCamera(constraints) {
     });
 }
 
-if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+if (!window.isSecureContext) {
+  // HTTP on a local IP — mobile browsers block camera access
+  statusEl.innerHTML =
+    '⚠️ 需要 HTTPS 才能使用相機<br>'
+    + '<small style="color:#f90;line-height:1.8;display:block;margin-top:4px">'
+    + '<b>Android Chrome 解決方法：</b><br>'
+    + '① 網址列輸入 <b>chrome://flags</b><br>'
+    + '② 搜尋「insecure」→「Insecely treat insecure origin as secure」<br>'
+    + '③ 將本機網址（如 http://192.168.x.x:8504）加入清單<br>'
+    + '④ 重新啟動 Chrome 即可使用相機<br><br>'
+    + '<b>iOS Safari：</b>需要 HTTPS，請改用手動觸發按鈕 ▼</small>';
+  document.getElementById("btnManual").disabled = false;
+  reportHeight();
+} else if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
   startCamera({ video: { facingMode: { ideal: "environment" }, width: { ideal: 640 }, height: { ideal: 480 } } });
 } else {
-  statusEl.textContent = "❌ 此瀏覽器不支援相機（請使用 Chrome / Safari）";
+  statusEl.textContent = "❌ 相機授權被拒或不支援，可使用「▶ 手動觸發」";
+  document.getElementById("btnManual").disabled = false;
 }
 
 // ─── Motion detection ────────────────────────────────────────────────────────

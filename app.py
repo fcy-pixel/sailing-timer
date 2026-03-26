@@ -10,21 +10,26 @@ st.set_page_config(page_title="風帆車計時系統", page_icon="⛵", layout="
 st.title("⛵ 風帆車行駛計時系統")
 st.markdown("---")
 
-# ── Shared race state file (both phones hit the same server) ─────────────────
-RACE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "race_state.json")
+# ── Shared race state (per room code) ────────────────────────────────────────
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-def read_race():
+def _race_file(code: str) -> str:
+    safe = "".join(c for c in code.upper().strip() if c.isalnum()) or "DEFAULT"
+    return os.path.join(BASE_DIR, f"race_{safe}.json")
+
+def read_race(code: str = "DEFAULT") -> dict:
     try:
-        if os.path.exists(RACE_FILE):
-            with open(RACE_FILE, encoding="utf-8") as f:
+        p = _race_file(code)
+        if os.path.exists(p):
+            with open(p, encoding="utf-8") as f:
                 return json.load(f)
     except Exception:
         pass
     return {"status": "idle", "start_time": None, "last_elapsed": None}
 
-def write_race(data):
+def write_race(data: dict, code: str = "DEFAULT"):
     try:
-        with open(RACE_FILE, "w", encoding="utf-8") as f:
+        with open(_race_file(code), "w", encoding="utf-8") as f:
             json.dump(data, f)
     except Exception:
         pass
@@ -69,7 +74,6 @@ def do_lap(car_name, route, distance_km, wind_speed, wind_dir, notes):
     st.session_state.lap_start = e
 
 def do_lap_direct(elapsed, car_name, route, distance_km, wind_speed, wind_dir, notes):
-    # elapsed is known directly from race_state.json start_time
     _save_lap(elapsed, car_name, route, distance_km, wind_speed, wind_dir, notes)
 
 def _save_lap(elapsed, car_name, route, distance_km, wind_speed, wind_dir, notes):
@@ -83,17 +87,28 @@ def _save_lap(elapsed, car_name, route, distance_km, wind_speed, wind_dir, notes
         "記錄時間": datetime.now().strftime("%H:%M:%S"), "備註": notes,
     })
 
-def do_reset():
+def do_reset(code: str = "DEFAULT"):
     st.session_state.running = False
     st.session_state.start_time = None
     st.session_state.elapsed = 0.0
     st.session_state.lap_start = None
     st.session_state.trigger_count = 0
-    write_race({"status": "idle", "start_time": None, "last_elapsed": None})
+    write_race({"status": "idle", "start_time": None, "last_elapsed": None}, code)
 
 # ── Sidebar ───────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.header("⚙️ 設定")
+
+    # ── Room code (must match on both phones) ─────────────────────────────────
+    room_code_raw = st.text_input(
+        "🔑 房間碼（兩機需一致）",
+        value="A",
+        max_chars=8,
+        help="起點和終點手機輸入相同房間碼，才能互相配對計時。",
+    )
+    room_code = "".join(c for c in room_code_raw.upper().strip() if c.isalnum()) or "A"
+    st.markdown("---")
+
     car_name    = st.text_input("風帆車名稱 / 編號", value="風帆車 #1")
     route       = st.text_input("路線名稱",          value="直線賽道")
     distance_km = st.number_input("路線距離 (km)",   min_value=0.0, value=0.1, step=0.01, format="%.3f")
@@ -105,7 +120,12 @@ with st.sidebar:
     cam_line_pos    = st.slider("感測線位置 (%)", 10, 90, 50)
     cam_sensitivity = st.slider("靈敏度",          5, 80, 25)
     cam_cooldown    = st.slider("冷卻時間 (秒)",   1, 10,  2)
-    st.info("兩部手機連接同一 WiFi，開啟同一網址後\n各自選擇裝置角色（起點 / 終點）。")
+    st.markdown("---")
+    st.info(
+        f"兩部手機連接同一 WiFi，開啟同一網址。\n"
+        f"目前房間碼：**{room_code}**\n"
+        f"兩機輸入相同碼即完成配對。"
+    )
 
 # ── Tabs ──────────────────────────────────────────────────────────────────────
 tab_manual, tab_camera = st.tabs(["⏱ 手動計時", "📷 雙機相機計時"])
@@ -146,7 +166,7 @@ with tab_manual:
                 do_lap(car_name, route, distance_km, wind_speed, wind_dir, notes); st.rerun()
         with b3:
             if st.button("🔄 重置", use_container_width=True, key="m_reset"):
-                do_reset(); st.rerun()
+                do_reset(room_code); st.rerun()
         if st.session_state.running:
             time.sleep(0.05); st.rerun()
 
@@ -166,10 +186,10 @@ with tab_manual:
 # Tab 2 - Dual Camera
 # ═════════════════════════════════════════════════════════════════════════════
 with tab_camera:
-    st.subheader("📷 雙機相機計時")
+    st.subheader(f"📷 雙機相機計時　🔑 {room_code}")
 
     # ── Race status bar ───────────────────────────────────────────────────────
-    race = read_race()
+    race = read_race(room_code)
     status_map = {
         "idle":     ("⏸", "待命中",       "#888"),
         "ready":    ("✅", "起點已就緒",    "#2ecc71"),
@@ -177,7 +197,8 @@ with tab_camera:
         "finished": ("🏁", "比賽完成",      "#e67e22"),
     }
     icon, label, color = status_map.get(race["status"], ("⏸", "待命中", "#888"))
-    last_t = f"　　最後成績：{fmt(race['last_elapsed'])}" if race.get("last_elapsed") else ""
+    _le = race.get("last_elapsed")
+    last_t = f"　　最後成績：{fmt(_le)}" if _le else ""
     st.markdown(
         f"<div style=\'background:#1e2130;border-radius:8px;padding:8px 16px;"
         f"font-size:1.1rem;font-weight:bold;color:{color};border:1px solid {color};\'>"
@@ -198,7 +219,7 @@ with tab_camera:
     with col_reset:
         st.write("")
         if st.button("🔄 重置比賽", use_container_width=True, key="race_reset"):
-            do_reset(); st.rerun()
+            do_reset(room_code); st.rerun()
 
     is_start = "起點" in dev_mode
     st.markdown("---")
@@ -221,13 +242,13 @@ with tab_camera:
 
         if cam_event is not None:
             ev_type = cam_event.get("type")
-            race = read_race()
+            race = read_race(room_code)
 
             if is_start:
                 # ── 起點裝置 ──────────────────────────────────────────────────
                 if ev_type == "armed":
                     st.session_state.cam_mode = True
-                    write_race({"status": "ready", "start_time": None, "last_elapsed": race.get("last_elapsed")})
+                    write_race({"status": "ready", "start_time": None, "last_elapsed": race.get("last_elapsed")}, room_code)
                     st.rerun()
                 elif ev_type == "disarmed":
                     st.session_state.cam_mode = False
@@ -235,7 +256,7 @@ with tab_camera:
                     if race["status"] in ("ready", "idle", "finished"):
                         start_t = time.time()
                         write_race({"status": "running", "start_time": start_t,
-                                    "last_elapsed": race.get("last_elapsed")})
+                                    "last_elapsed": race.get("last_elapsed")}, room_code)
                         st.session_state.running = True
                         st.session_state.start_time = start_t
                         st.session_state.elapsed = 0.0
@@ -244,10 +265,9 @@ with tab_camera:
                         st.toast("🚀 起點通過！計時開始！", icon="🏃")
                         st.rerun()
                 elif ev_type == "manual_trigger" and not st.session_state.cam_mode:
-                    # Manual even when not armed
                     start_t = time.time()
                     write_race({"status": "running", "start_time": start_t,
-                                "last_elapsed": race.get("last_elapsed")})
+                                "last_elapsed": race.get("last_elapsed")}, room_code)
                     st.session_state.running = True
                     st.session_state.start_time = start_t
                     st.session_state.elapsed = 0.0
@@ -265,7 +285,7 @@ with tab_camera:
                         elapsed = time.time() - race["start_time"]
                         do_lap_direct(elapsed, car_name, route, distance_km, wind_speed, wind_dir, notes)
                         write_race({"status": "finished", "start_time": race["start_time"],
-                                    "last_elapsed": elapsed})
+                                    "last_elapsed": elapsed}, room_code)
                         st.session_state.trigger_count += 1
                         st.toast(f"🏁 終點通過！成績: {fmt(elapsed)}", icon="🎉")
                         st.rerun()
@@ -276,15 +296,14 @@ with tab_camera:
                         elapsed = time.time() - race["start_time"]
                         do_lap_direct(elapsed, car_name, route, distance_km, wind_speed, wind_dir, notes)
                         write_race({"status": "finished", "start_time": race["start_time"],
-                                    "last_elapsed": elapsed})
+                                    "last_elapsed": elapsed}, room_code)
                         st.rerun()
 
     # ── Info panel ────────────────────────────────────────────────────────────
     with col_cam_info:
-        race = read_race()
+        race = read_race(room_code)
         st.subheader("📊 計時狀態")
 
-        # Role badge
         if is_start:
             st.success("🟢 起點裝置")
             if st.session_state.running:
@@ -325,7 +344,6 @@ with tab_camera:
         else:
             st.caption("**終點操作：**\n1. 確認起點手機已就緒\n2. 按「啟用偵測」\n3. 風帆車通過終點 → 記錄成績")
 
-        # Auto-refresh
         if is_start and st.session_state.running:
             time.sleep(0.1); st.rerun()
         if not is_start and st.session_state.cam_mode and race["status"] == "running":
@@ -337,10 +355,11 @@ with tab_camera:
 | 步驟 | 起點手機 | 終點手機 |
 |------|----------|----------|
 | 1 | 連到同一 WiFi，開啟同一網址 | 連到同一 WiFi，開啟同一網址 |
-| 2 | 選「🟢 起點」 | 選「🏁 終點」 |
-| 3 | 對準起點線，按「啟用偵測」 | 對準終點線，按「啟用偵測」 |
-| 4 | 風帆車通過 → **自動開始計時** | 等待… |
-| 5 | 顯示計時中 | 風帆車通過 → **自動記錄成績** |
+| 2 | 左側欄輸入相同**房間碼** | 左側欄輸入相同**房間碼** |
+| 3 | 選「🟢 起點」 | 選「🏁 終點」 |
+| 4 | 對準起點線，按「啟用偵測」 | 對準終點線，按「啟用偵測」 |
+| 5 | 風帆車通過 → **自動開始計時** | 等待… |
+| 6 | 顯示計時中 | 風帆車通過 → **自動記錄成績** |
     ''')
 
 # ── Shared lap records ────────────────────────────────────────────────────────
@@ -354,7 +373,7 @@ if st.session_state.laps:
     col_dl, col_clear = st.columns([1, 5])
     with col_dl:
         csv = df.to_csv(index=False, encoding="utf-8-sig")
-        ts  = datetime.now().strftime('%Y%m%d_%H%M%S')
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         st.download_button(
             "⬇ 下載 CSV", data=csv,
             file_name=f"sailing_{ts}.csv",
