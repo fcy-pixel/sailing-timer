@@ -1,1 +1,6 @@
 app.py.bak
+race_*.json
+ssl_cert.pem
+ssl_key.pem
+__pycache__/
+*.pyc
