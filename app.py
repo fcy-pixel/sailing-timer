@@ -271,3 +271,9 @@ if st.session_state.laps:
     with col_clear:
         if st.button("🗑 清除記錄"):
             st.session_state.laps = []; st.rerun()
+
+st.markdown("---")
+st.markdown(
+    "<div style='text-align:center;color:#555;font-size:0.85rem;'>Empowered by Fung Sir</div>",
+    unsafe_allow_html=True,
+)
