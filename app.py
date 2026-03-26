@@ -4,35 +4,25 @@ import pandas as pd
 from datetime import datetime
 import time
 import os
-import json
 
 st.set_page_config(page_title="風帆車計時系統", page_icon="⛵", layout="wide")
 st.title("⛵ 風帆車行駛計時系統")
 st.markdown("---")
 
-# ── Shared race state (per room code) ────────────────────────────────────────
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
-def _race_file(code: str) -> str:
-    safe = "".join(c for c in code.upper().strip() if c.isalnum()) or "DEFAULT"
-    return os.path.join(BASE_DIR, f"race_{safe}.json")
+# ── Shared race state — stored in memory, shared across ALL sessions ──────────
+# st.cache_resource lives in the same Python process for every connected device.
+# Two phones on the same Streamlit Cloud URL share this dict automatically.
+@st.cache_resource
+def _race_store() -> dict:
+    return {}
 
 def read_race(code: str = "DEFAULT") -> dict:
-    try:
-        p = _race_file(code)
-        if os.path.exists(p):
-            with open(p, encoding="utf-8") as f:
-                return json.load(f)
-    except Exception:
-        pass
-    return {"status": "idle", "start_time": None, "last_elapsed": None}
+    return _race_store().get(
+        code, {"status": "idle", "start_time": None, "last_elapsed": None}
+    )
 
 def write_race(data: dict, code: str = "DEFAULT"):
-    try:
-        with open(_race_file(code), "w", encoding="utf-8") as f:
-            json.dump(data, f)
-    except Exception:
-        pass
+    _race_store()[code] = data
 
 # ── Session state ─────────────────────────────────────────────────────────────
 def _init(key, val):
