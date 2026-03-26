@@ -233,16 +233,25 @@ function startCamera(constraints) {
   navigator.mediaDevices.getUserMedia(constraints)
     .then(stream => {
       video.srcObject = stream;
+      document.getElementById("btnArm").disabled    = false;
+      document.getElementById("btnManual").disabled = false;
       video.onloadedmetadata = () => {
         overlay.width  = video.videoWidth  || 640;
         overlay.height = video.videoHeight || 480;
-        statusEl.textContent = deviceMode === "start"
-          ? "✅ 相機就緒 — 按「啟用偵測」等待起點"
-          : "✅ 相機就緒 — 按「啟用偵測」等待終點";
-        document.getElementById("btnArm").disabled    = false;
-        document.getElementById("btnManual").disabled = false;
         startLoop();
         reportHeight();
+        // Auto-arm countdown
+        let count = 3;
+        statusEl.textContent = `✅ 相機就緒 — ${count} 秒後自動開始偵測…`;
+        const timer = setInterval(() => {
+          count--;
+          if (count > 0) {
+            statusEl.textContent = `✅ 相機就緒 — ${count} 秒後自動開始偵測…`;
+          } else {
+            clearInterval(timer);
+            if (!armed) document.getElementById("btnArm").click();
+          }
+        }, 1000);
       };
       video.onplay = reportHeight;
     })
