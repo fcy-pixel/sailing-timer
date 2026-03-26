@@ -240,18 +240,7 @@ function startCamera(constraints) {
         overlay.height = video.videoHeight || 480;
         startLoop();
         reportHeight();
-        // Auto-arm countdown
-        let count = 3;
-        statusEl.textContent = `✅ 相機就緒 — ${count} 秒後自動開始偵測…`;
-        const timer = setInterval(() => {
-          count--;
-          if (count > 0) {
-            statusEl.textContent = `✅ 相機就緒 — ${count} 秒後自動開始偵測…`;
-          } else {
-            clearInterval(timer);
-            if (!armed) document.getElementById("btnArm").click();
-          }
-        }, 1000);
+        statusEl.textContent = "✅ 相機就緒 — 按「🟢 啟用偵測」後等待沖線";
       };
       video.onplay = reportHeight;
     })
@@ -336,12 +325,12 @@ function triggerEvent(ratio) {
   flash.classList.add("flash");
   setTimeout(() => flash.classList.remove("flash"), 300);
   sendToStreamlit({ type: "motion", timestamp: Date.now(), ratio: ratio, count: triggerCount });
-  statusEl.textContent = isStart ? `🚀 起點通過！(#${triggerCount})` : `🏁 終點通過！(#${triggerCount})`;
-  setTimeout(() => {
-    if (armed) {
-      statusEl.textContent = isStart ? "🟢 等待下一次起點…" : "🏁 等待下一次終點…";
-    }
-  }, 2000);
+  // Auto-disarm after one trigger
+  armed = false;
+  document.getElementById("btnArm").disabled    = false;
+  document.getElementById("btnDisarm").disabled = true;
+  sendToStreamlit({ type: "disarmed", timestamp: Date.now() });
+  statusEl.textContent = isStart ? `✅ 起點通過！按「🟢 啟用偵測」開下一次` : `✅ 終點通過！成績已記錄`;
 }
 
 function lineColor() {
