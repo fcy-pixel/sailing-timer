@@ -93,6 +93,12 @@ with st.sidebar:
 # ── Main page ─────────────────────────────────────────────────────────────────
 # ── Role selector ─────────────────────────────────────────────────────────────
 race = read_race(room_code)
+st.markdown(
+    "<h1 style='text-align:center;font-size:2rem;margin-bottom:0;'>⛵ 風帆車計時系統</h1>"
+    "<div style='text-align:center;color:#f39c12;font-size:1.1rem;font-weight:bold;"
+    "letter-spacing:2px;margin-bottom:12px;'>Empowered by Fung Sir</div>",
+    unsafe_allow_html=True,
+)
 status_map = {
     "idle":     ("⏸", "待命中",    "#888"),
     "ready":    ("✅", "起點就緒",  "#2ecc71"),
@@ -273,9 +279,3 @@ if st.session_state.laps:
     with col_clear:
         if st.button("🗑 清除記錄"):
             st.session_state.laps = []; st.rerun()
-
-st.markdown("---")
-st.markdown(
-    "<div style='text-align:center;color:#555;font-size:0.85rem;'>Empowered by Fung Sir</div>",
-    unsafe_allow_html=True,
-)
