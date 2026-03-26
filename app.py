@@ -36,6 +36,7 @@ _init("laps", [])
 _init("lap_start", None)
 _init("cam_mode", False)
 _init("trigger_count", 0)
+_init("last_dev_mode", None)
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 def fmt(seconds: float) -> str:
@@ -212,6 +213,46 @@ with tab_camera:
             do_reset(room_code); st.rerun()
 
     is_start = "起點" in dev_mode
+
+    # Reset cam_mode when role changes
+    if st.session_state.last_dev_mode != dev_mode:
+        st.session_state.cam_mode = False
+        st.session_state.last_dev_mode = dev_mode
+
+    st.markdown("---")
+
+    # ── Big manual buttons (always visible, no camera needed) ─────────────────
+    race = read_race(room_code)
+    if is_start:
+        if race["status"] not in ("running",):
+            if st.button("🚀 手動開始計時", use_container_width=True, type="primary", key="big_start"):
+                start_t = time.time()
+                write_race({"status": "running", "start_time": start_t,
+                            "last_elapsed": race.get("last_elapsed")}, room_code)
+                st.session_state.running = True
+                st.session_state.start_time = start_t
+                st.session_state.elapsed = 0.0
+                st.session_state.lap_start = 0.0
+                st.session_state.trigger_count += 1
+                st.toast("🚀 計時開始！", icon="🏃")
+                st.rerun()
+        else:
+            st.info(f"🏃 計時中… {fmt(time.time() - race['start_time'])}")
+    else:
+        if race["status"] == "running" and race["start_time"]:
+            if st.button("🏁 手動記錄終點", use_container_width=True, type="primary", key="big_finish"):
+                elapsed = time.time() - race["start_time"]
+                do_lap_direct(elapsed, car_name, route, distance_km, wind_speed, wind_dir, notes)
+                write_race({"status": "finished", "start_time": race["start_time"],
+                            "last_elapsed": elapsed}, room_code)
+                st.session_state.trigger_count += 1
+                st.toast(f"🏁 成績: {fmt(elapsed)}", icon="🎉")
+                st.rerun()
+        elif race["status"] == "finished" and race.get("last_elapsed"):
+            st.success(f"🏁 最後成績：{fmt(race['last_elapsed'])}")
+        else:
+            st.info("⏳ 等待起點手機開始計時…")
+
     st.markdown("---")
 
     # ── Camera component ──────────────────────────────────────────────────────
