@@ -313,11 +313,11 @@ function startLoop() {
       offCanvas.width = w; offCanvas.height = h;
       offCtx.drawImage(video, 0, 0, w, h);
       const lineX = Math.floor(w * linePct);
-      const zoneW = Math.max(8, Math.floor(w * 0.04));
+      const zoneW = Math.max(16, Math.floor(w * 0.12));  // wider zone = easier to catch
       const id    = offCtx.getImageData(lineX, 0, zoneW, h);
       const ratio = motionInZone(id.data, zoneW, h);
       const now   = Date.now();
-      if (armed && ratio > 0.06 && (now - lastTrigger) > cooldownMs) {
+      if (armed && ratio > 0.03 && (now - lastTrigger) > cooldownMs) {
         lastTrigger = now;
         triggerCount++;
         triggerEvent(ratio);
@@ -342,7 +342,7 @@ function triggerEvent(ratio) {
   document.getElementById("btnDisarm").disabled = true;
   statusEl.textContent = isStart ? `✅ 起點通過！按「🟢 啟用偵測」開下一次` : `✅ 終點通過！成績已記錄`;
   // Finish device: re-arm after short delay so it's ready for next attempt
-  if (!isStart && autoArm) {
+  if (deviceMode === "finish") {
     setTimeout(() => { if (!armed) document.getElementById("btnArm").click(); }, 2000);
   }
 }
@@ -359,7 +359,7 @@ function drawOverlay(lineX, zoneW, motionRatio, h, w) {
     motionRatio = 0;
   }
   ctx.clearRect(0, 0, w, h);
-  const moving = armed && motionRatio > 0.06;
+  const moving = armed && motionRatio > 0.03;
   const mc = lineColor();
   ctx.fillStyle = moving ? "rgba(255,80,80,0.25)" : (deviceMode === "start" ? "rgba(46,204,113,0.1)" : "rgba(230,126,34,0.12)");
   ctx.fillRect(lineX, 0, zoneW, h);
@@ -371,8 +371,9 @@ function drawOverlay(lineX, zoneW, motionRatio, h, w) {
   ctx.setLineDash([]);
   ctx.font      = "bold 13px monospace";
   ctx.fillStyle = moving ? "#ff4444" : mc;
+  const pct   = (motionRatio * 100).toFixed(1);
   const label   = armed
-    ? (moving ? "🚨 偵測到！" : (deviceMode === "start" ? "🟢 偵測中（起點）" : "🏁 偵測中（終點）"))
+    ? (moving ? `🚨 偵測到！(${pct}%)` : (deviceMode === "start" ? `🟢 偵測中（起點） ${pct}%` : `🏁 偵測中（終點） ${pct}%`))
     : (deviceMode === "start" ? "感測線（起點）" : "感測線（終點）");
   ctx.fillText(label, lineX + zoneW + 6, 20);
   const barH = Math.floor((h - 20) * Math.min(motionRatio / 0.3, 1));

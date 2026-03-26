@@ -247,7 +247,9 @@ if cam_event is not None:
         elif ev_type == "disarmed":
             st.session_state.cam_mode = False
         elif ev_type == "motion":  # trust JS armed state — no cam_mode guard needed
-            if race["status"] == "running" and race["start_time"]:
+            # Accept motion if running, OR if start_time exists but status update lagged
+            if race["start_time"] and race["status"] in ("running", "ready"):
+                elapsed = time.time() - race["start_time"]
                 elapsed = time.time() - race["start_time"]
                 _save_lap(elapsed, car_name, route, distance_km)
                 write_race({"status": "finished", "start_time": race["start_time"],
