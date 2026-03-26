@@ -180,8 +180,13 @@ function applyMode() {
 }
 
 // ─── Args from Python ────────────────────────────────────────────────────────
-// ─── Args from Python ────────────────────────────────────────────────────────
-let autoArm = false;
+let cameraReady = false;
+
+function tryAutoArm() {
+  if (cameraReady && deviceMode === "finish" && !armed) {
+    document.getElementById("btnArm").click();
+  }
+}
 
 window.addEventListener("message", (ev) => {
   if (ev.data.type === "streamlit:render") {
@@ -189,8 +194,8 @@ window.addEventListener("message", (ev) => {
     if (args.mode !== undefined && args.mode !== deviceMode) {
       deviceMode = args.mode;
       applyMode();
+      tryAutoArm();  // re-check if camera was already ready
     }
-    if (args.auto_arm !== undefined) autoArm = args.auto_arm;
     if (args.line_pos    !== undefined) { document.getElementById("linePos").value    = args.line_pos;    updateLinePos(); }
     if (args.sensitivity !== undefined) { document.getElementById("sensitivity").value = args.sensitivity; updateSens(); }
     if (args.cooldown    !== undefined) { document.getElementById("cooldown").value   = args.cooldown;    updateCooldown(); }
@@ -244,12 +249,9 @@ function startCamera(constraints) {
         overlay.height = video.videoHeight || 480;
         startLoop();
         reportHeight();
-        if (autoArm) {
-          // Finish device: arm immediately, no button press needed
-          document.getElementById("btnArm").click();
-        } else {
-          statusEl.textContent = "✅ 相機就緒 — 按「🟢 啟用偵測」後等待沖線";
-        }
+        cameraReady = true;
+        tryAutoArm();  // arm if mode already set to finish
+        if (!armed) statusEl.textContent = "✅ 相機就緒 — 按「🟢 啟用偵測」後等待沖線";
       };
       video.onplay = reportHeight;
     })

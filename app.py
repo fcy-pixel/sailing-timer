@@ -207,7 +207,6 @@ cam_event = camera_component(
     line_pos=cam_line_pos,
     sensitivity=cam_sensitivity,
     cooldown=cam_cooldown,
-    auto_arm=not is_start,  # finish device arms automatically
     key="cam",
     default=None,
     height=560,
