@@ -20,6 +20,23 @@ def read_race(code: str = "A") -> dict:
 def write_race(data: dict, code: str = "A"):
     _race_store()[code] = data
 
+@st.cache_resource
+def _conn_store() -> dict:
+    return {}  # {room: {"start": timestamp, "finish": timestamp}}
+
+def update_presence(room_code: str, role: str):
+    s = _conn_store()
+    if room_code not in s:
+        s[room_code] = {}
+    s[room_code][role] = time.time()
+
+def get_pairing(room_code: str):
+    """Return (start_online, finish_online) based on last-seen timestamps."""
+    conn = _conn_store().get(room_code, {})
+    now = time.time()
+    timeout = 15  # seconds without heartbeat → considered offline
+    return (now - conn.get("start", 0)) < timeout, (now - conn.get("finish", 0)) < timeout
+
 def _init(key, val):
     if key not in st.session_state:
         st.session_state[key] = val
@@ -111,6 +128,29 @@ is_start = "起點" in dev_mode
 if st.session_state.last_dev_mode != dev_mode:
     st.session_state.cam_mode = False
     st.session_state.last_dev_mode = dev_mode
+
+# Update this device's presence and show pairing status
+update_presence(room_code, "start" if is_start else "finish")
+start_on, finish_on = get_pairing(room_code)
+
+if start_on and finish_on:
+    pair_bg, pair_border, pair_icon, pair_text = "#0d2b0d", "#2ecc71", "✅", "兩機配對成功"
+elif start_on or finish_on:
+    pair_bg, pair_border, pair_icon, pair_text = "#2b1d00", "#f39c12", "⏳", "等待另一部手機加入…"
+else:
+    pair_bg, pair_border, pair_icon, pair_text = "#1e1e1e", "#888", "📵", "未配對"
+
+role_tag = "🟢 起點" if start_on else "<span style='color:#555'>🟢 起點</span>"
+finish_tag = "🏁 終點" if finish_on else "<span style='color:#555'>🏁 終點</span>"
+st.markdown(
+    f"<div style='background:{pair_bg};border:2px solid {pair_border};border-radius:10px;"
+    f"padding:8px 16px;font-size:1rem;color:{pair_border};font-weight:bold;'"
+    f">{pair_icon} {pair_text}"
+    f"<span style='float:right;font-size:0.85rem;font-weight:normal;color:#aaa;'>"
+    f"房間 {room_code}：{role_tag} &nbsp;|&nbsp; {finish_tag}</span></div>",
+    unsafe_allow_html=True,
+)
+st.write("")
 
 st.markdown("---")
 
@@ -209,10 +249,12 @@ if cam_event is not None:
                 st.toast(f"🏁 終點！成績: {fmt(elapsed)}", icon="🎉")
                 st.rerun()
 
-# Auto-refresh while timing
+# Auto-refresh while timing; slow refresh to keep pairing status live when idle
 race = read_race(room_code)
 if race["status"] == "running":
     time.sleep(0.15); st.rerun()
+elif not (start_on and finish_on):
+    time.sleep(5); st.rerun()
 
 # ── Results table ─────────────────────────────────────────────────────────────
 if st.session_state.laps:
