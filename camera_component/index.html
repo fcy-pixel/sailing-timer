@@ -11,8 +11,25 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 10px;
-    padding: 10px;
+    gap: 8px;
+    padding: 8px;
+  }
+
+  #modeBanner {
+    font-size: 1.4rem;
+    font-weight: bold;
+    letter-spacing: 2px;
+    padding: 6px 24px;
+    border-radius: 20px;
+    background: rgba(46,204,113,0.15);
+    border: 2px solid #2ecc71;
+    color: #2ecc71;
+    transition: all 0.3s;
+  }
+  #modeBanner.finish {
+    background: rgba(230,126,34,0.15);
+    border-color: #e67e22;
+    color: #e67e22;
   }
 
   #videoWrap {
@@ -23,7 +40,6 @@
     background: #111;
     border-radius: 8px;
   }
-
   video {
     width: 100%;
     display: block;
@@ -31,9 +47,7 @@
     min-height: 240px;
     background: #111;
   }
-  canvas {
-    display: block;
-  }
+  canvas { display: block; }
   #overlay {
     position: absolute;
     top: 0; left: 0;
@@ -43,12 +57,12 @@
   }
 
   #status {
-    font-size: 1.1rem;
-    padding: 6px 18px;
-    border-radius: 20px;
+    font-size: 1rem;
+    padding: 5px 16px;
+    border-radius: 16px;
     background: #1e2130;
     border: 1px solid #444;
-    min-width: 220px;
+    min-width: 200px;
     text-align: center;
   }
 
@@ -71,32 +85,30 @@
     transition: opacity 0.15s;
   }
   button:disabled { opacity: 0.35; cursor: not-allowed; }
-  #btnStart  { background: #1f77b4; color: #fff; }
-  #btnStop   { background: #e74c3c; color: #fff; }
   #btnArm    { background: #2ecc71; color: #111; }
   #btnDisarm { background: #888;    color: #fff; }
+  #btnManual { background: #1f77b4; color: #fff; }
 
   .slider-row {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     width: 100%;
     max-width: 640px;
-    font-size: 0.88rem;
+    font-size: 0.85rem;
     color: #aaa;
   }
-  .slider-row label { min-width: 110px; }
+  .slider-row label { min-width: 100px; }
   .slider-row input[type=range] { flex: 1; }
-  .slider-row span { min-width: 40px; text-align: right; }
+  .slider-row span { min-width: 36px; text-align: right; }
 
   #flashOverlay {
     position: fixed;
     inset: 0;
     pointer-events: none;
     opacity: 0;
-    background: rgba(255,80,80,0.35);
-    border: 4px solid #e74c3c;
-    border-radius: 8px;
+    background: rgba(46,204,113,0.35);
+    border: 4px solid #2ecc71;
     transition: opacity 0.08s;
     z-index: 999;
   }
@@ -106,6 +118,8 @@
 <body>
 <div id="flashOverlay"></div>
 <div id="container">
+  <div id="modeBanner">🟢 起點模式</div>
+
   <div id="videoWrap">
     <video id="video" autoplay muted playsinline></video>
     <canvas id="overlay"></canvas>
@@ -116,11 +130,9 @@
   <div class="controls">
     <button id="btnArm"    disabled>🟢 啟用偵測</button>
     <button id="btnDisarm" disabled>⛔ 停用偵測</button>
-    <button id="btnStart"  disabled>▶ 手動開始</button>
-    <button id="btnStop"   disabled>⏹ 手動停止 / 記圈</button>
+    <button id="btnManual" disabled>▶ 手動觸發</button>
   </div>
 
-  <!-- Detection line -->
   <div class="slider-row">
     <label>感測線位置 (↕)</label>
     <input type="range" id="linePos" min="10" max="90" value="50">
@@ -139,12 +151,10 @@
 </div>
 
 <script>
-// ─── Streamlit component bridge ──────────────────────────────────────────────
+// ─── Streamlit bridge ────────────────────────────────────────────────────────
 function sendToStreamlit(data) {
   window.parent.postMessage({ isStreamlitMessage: true, type: "streamlit:setComponentValue", value: data }, "*");
 }
-
-// Signal ready and report height
 function notifyReady() {
   window.parent.postMessage({ isStreamlitMessage: true, type: "streamlit:componentReady", apiVersion: 1 }, "*");
 }
@@ -153,69 +163,91 @@ function reportHeight() {
   window.parent.postMessage({ isStreamlitMessage: true, type: "streamlit:setFrameHeight", height: h }, "*");
 }
 
-// Receive args from Python
+// ─── Mode ────────────────────────────────────────────────────────────────────
+let deviceMode = "start"; // "start" | "finish"
+
+function applyMode() {
+  const banner = document.getElementById("modeBanner");
+  const flash  = document.getElementById("flashOverlay");
+  if (deviceMode === "start") {
+    banner.textContent = "🟢 起點模式";
+    banner.className   = "";
+  } else {
+    banner.textContent = "🏁 終點模式";
+    banner.className   = "finish";
+  }
+  drawOverlay();
+}
+
+// ─── Args from Python ────────────────────────────────────────────────────────
 window.addEventListener("message", (ev) => {
   if (ev.data.type === "streamlit:render") {
     const args = ev.data.args || {};
-    if (args.line_pos   !== undefined) { document.getElementById("linePos").value    = args.line_pos;    updateLinePos(); }
-    if (args.sensitivity !== undefined){ document.getElementById("sensitivity").value = args.sensitivity; updateSens(); }
-    if (args.cooldown   !== undefined) { document.getElementById("cooldown").value   = args.cooldown;   updateCooldown(); }
+    if (args.mode !== undefined && args.mode !== deviceMode) {
+      deviceMode = args.mode;
+      applyMode();
+    }
+    if (args.line_pos    !== undefined) { document.getElementById("linePos").value    = args.line_pos;    updateLinePos(); }
+    if (args.sensitivity !== undefined) { document.getElementById("sensitivity").value = args.sensitivity; updateSens(); }
+    if (args.cooldown    !== undefined) { document.getElementById("cooldown").value   = args.cooldown;    updateCooldown(); }
   }
 });
 
 notifyReady();
 setTimeout(reportHeight, 200);
 
-// ─── Camera ──────────────────────────────────────────────────────────────────
-const video     = document.getElementById("video");
-const overlay   = document.getElementById("overlay");
-const ctx       = overlay.getContext("2d");
-const statusEl  = document.getElementById("status");
-const flash     = document.getElementById("flashOverlay");
+// ─── Camera setup ────────────────────────────────────────────────────────────
+const video    = document.getElementById("video");
+const overlay  = document.getElementById("overlay");
+const ctx      = overlay.getContext("2d");
+const statusEl = document.getElementById("status");
+const flash    = document.getElementById("flashOverlay");
 
-let prevGray    = null;
-let armed       = false;
-let lastTrigger = 0;
-let animId      = null;
+let prevGray     = null;
+let armed        = false;
+let lastTrigger  = 0;
+let animId       = null;
 let triggerCount = 0;
+let linePct      = 0.50;
+let sens         = 25;
+let cooldownMs   = 3000;
 
-let linePct    = 0.50;
-let sens       = 25;
-let cooldownMs = 3000;
-
-// ── Sliders ──
-function updateLinePos() { linePct = +document.getElementById("linePos").value / 100; document.getElementById("linePosVal").textContent = document.getElementById("linePos").value + "%"; drawOverlay(); }
-function updateSens()    { sens = +document.getElementById("sensitivity").value; document.getElementById("sensVal").textContent = sens; }
-function updateCooldown(){ cooldownMs = +document.getElementById("cooldown").value * 1000; document.getElementById("cooldownVal").textContent = document.getElementById("cooldown").value + "s"; }
-
+function updateLinePos() {
+  linePct = +document.getElementById("linePos").value / 100;
+  document.getElementById("linePosVal").textContent = document.getElementById("linePos").value + "%";
+  drawOverlay();
+}
+function updateSens() {
+  sens = +document.getElementById("sensitivity").value;
+  document.getElementById("sensVal").textContent = sens;
+}
+function updateCooldown() {
+  cooldownMs = +document.getElementById("cooldown").value * 1000;
+  document.getElementById("cooldownVal").textContent = document.getElementById("cooldown").value + "s";
+}
 document.getElementById("linePos").addEventListener("input", updateLinePos);
 document.getElementById("sensitivity").addEventListener("input", updateSens);
 document.getElementById("cooldown").addEventListener("input", updateCooldown);
 
-// ── Start camera ──
 function startCamera(constraints) {
   navigator.mediaDevices.getUserMedia(constraints)
     .then(stream => {
       video.srcObject = stream;
       video.onloadedmetadata = () => {
-        const vw = video.videoWidth  || 640;
-        const vh = video.videoHeight || 480;
-        video.width  = vw;
-        video.height = vh;
-        overlay.width  = vw;
-        overlay.height = vh;
-        statusEl.textContent = "✅ 相機就緒 — 按「啟用偵測」自動計時";
-        document.getElementById("btnArm").disabled   = false;
-        document.getElementById("btnStart").disabled = false;
+        overlay.width  = video.videoWidth  || 640;
+        overlay.height = video.videoHeight || 480;
+        statusEl.textContent = deviceMode === "start"
+          ? "✅ 相機就緒 — 按「啟用偵測」等待起點"
+          : "✅ 相機就緒 — 按「啟用偵測」等待終點";
+        document.getElementById("btnArm").disabled    = false;
+        document.getElementById("btnManual").disabled = false;
         startLoop();
         reportHeight();
       };
-      // Also trigger once stream starts
       video.onplay = reportHeight;
     })
     .catch(err => {
       if (constraints.video && constraints.video.facingMode) {
-        // Retry without facingMode constraint (for desktop webcams)
         startCamera({ video: { width: { ideal: 640 }, height: { ideal: 480 } } });
       } else {
         statusEl.textContent = "❌ 無法存取相機：" + err.message;
@@ -226,45 +258,30 @@ function startCamera(constraints) {
 if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
   startCamera({ video: { facingMode: { ideal: "environment" }, width: { ideal: 640 }, height: { ideal: 480 } } });
 } else {
-  statusEl.textContent = "❌ 此瀏覽器不支援存取相機（請使用 Chrome / Safari）";
+  statusEl.textContent = "❌ 此瀏覽器不支援相機（請使用 Chrome / Safari）";
 }
 
-// ── Offscreen canvas for motion detection ──
+// ─── Motion detection ────────────────────────────────────────────────────────
 const offCanvas = document.createElement("canvas");
 const offCtx    = offCanvas.getContext("2d");
 
-function toGray(data, w, y0, h) {
-  const len = w * h;
-  const gray = new Uint8Array(len);
-  for (let i = 0; i < len; i++) {
-    const px = (y0 * w + i) * 4;   // approximate: row-major flattened zone segment
-    // correct index for zone rows:
-  }
-  // Proper: iterate rows in zone
-  const result = new Uint8Array(w * h);
-  for (let row = 0; row < h; row++) {
+function motionInZone(data, w, zoneH) {
+  const result = new Uint8Array(w * zoneH);
+  for (let row = 0; row < zoneH; row++) {
     for (let col = 0; col < w; col++) {
-      const pixel = ((y0 + row) * w + col) * 4;
-      result[row * w + col] = (data[pixel] * 0.299 + data[pixel+1] * 0.587 + data[pixel+2] * 0.114);
+      const px = (row * w + col) * 4;
+      result[row * w + col] = data[px] * 0.299 + data[px+1] * 0.587 + data[px+2] * 0.114;
     }
   }
-  return result;
-}
-
-function motionInZone(imageData, w, h, lineY, zoneH) {
-  const gray = toGray(imageData, w, lineY, zoneH);
-  if (!prevGray || prevGray.length !== gray.length) { prevGray = gray; return 0; }
-  let diff = 0, above = 0;
-  for (let i = 0; i < gray.length; i++) {
-    const d = Math.abs(gray[i] - prevGray[i]);
-    if (d > sens) above++;
-    diff += d;
+  if (!prevGray || prevGray.length !== result.length) { prevGray = result; return 0; }
+  let above = 0;
+  for (let i = 0; i < result.length; i++) {
+    if (Math.abs(result[i] - prevGray[i]) > sens) above++;
   }
-  prevGray = gray;
-  return above / gray.length; // ratio of changed pixels
+  prevGray = result;
+  return above / result.length;
 }
 
-// ── Main loop ──
 function startLoop() {
   if (animId) cancelAnimationFrame(animId);
   function loop() {
@@ -272,21 +289,17 @@ function startLoop() {
       const w = overlay.width, h = overlay.height;
       offCanvas.width = w; offCanvas.height = h;
       offCtx.drawImage(video, 0, 0, w, h);
-
       const lineY = Math.floor(h * linePct);
       const zoneH = Math.max(8, Math.floor(h * 0.04));
-      const imageData = offCtx.getImageData(0, lineY, w, zoneH);
-      const motionRatio = motionInZone(imageData.data, w, zoneH, 0, zoneH);
-
-      // Trigger detection
-      const now = Date.now();
-      if (armed && motionRatio > 0.06 && (now - lastTrigger) > cooldownMs) {
+      const id    = offCtx.getImageData(0, lineY, w, zoneH);
+      const ratio = motionInZone(id.data, w, zoneH);
+      const now   = Date.now();
+      if (armed && ratio > 0.06 && (now - lastTrigger) > cooldownMs) {
         lastTrigger = now;
         triggerCount++;
-        triggerEvent(motionRatio);
+        triggerEvent(ratio);
       }
-
-      drawOverlay(lineY, zoneH, motionRatio, h, w);
+      drawOverlay(lineY, zoneH, ratio, h, w);
     }
     animId = requestAnimationFrame(loop);
   }
@@ -294,15 +307,22 @@ function startLoop() {
 }
 
 function triggerEvent(ratio) {
-  // Flash red
+  const isStart = deviceMode === "start";
+  flash.style.background  = isStart ? "rgba(46,204,113,0.4)"  : "rgba(230,126,34,0.4)";
+  flash.style.borderColor = isStart ? "#2ecc71" : "#e67e22";
   flash.classList.add("flash");
-  setTimeout(() => flash.classList.remove("flash"), 200);
-
+  setTimeout(() => flash.classList.remove("flash"), 300);
   sendToStreamlit({ type: "motion", timestamp: Date.now(), ratio: ratio, count: triggerCount });
-  statusEl.textContent = `🚨 感測到動作！(第 ${triggerCount} 次)`;
+  statusEl.textContent = isStart ? `🚀 起點通過！(#${triggerCount})` : `🏁 終點通過！(#${triggerCount})`;
   setTimeout(() => {
-    statusEl.textContent = armed ? `🟢 偵測中 — 已觸發 ${triggerCount} 次` : "⛔ 偵測已停用";
-  }, 1500);
+    if (armed) {
+      statusEl.textContent = isStart ? "🟢 等待下一次起點…" : "🏁 等待下一次終點…";
+    }
+  }, 2000);
+}
+
+function lineColor() {
+  return deviceMode === "start" ? "#2ecc71" : "#e67e22";
 }
 
 function drawOverlay(lineY, zoneH, motionRatio, h, w) {
@@ -313,61 +333,51 @@ function drawOverlay(lineY, zoneH, motionRatio, h, w) {
     motionRatio = 0;
   }
   ctx.clearRect(0, 0, w, h);
-
-  // Zone fill
   const moving = armed && motionRatio > 0.06;
-  ctx.fillStyle = moving ? "rgba(255,80,80,0.3)" : "rgba(30,240,100,0.12)";
+  const mc = lineColor();
+  ctx.fillStyle = moving ? "rgba(255,80,80,0.25)" : (deviceMode === "start" ? "rgba(46,204,113,0.1)" : "rgba(230,126,34,0.12)");
   ctx.fillRect(0, lineY, w, zoneH);
-
-  // Detection line
-  ctx.strokeStyle = moving ? "#ff4444" : "#1ed760";
+  ctx.strokeStyle = moving ? "#ff4444" : mc;
   ctx.lineWidth   = 3;
   ctx.setLineDash([12, 6]);
   ctx.beginPath(); ctx.moveTo(0, lineY); ctx.lineTo(w, lineY); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(0, lineY + zoneH); ctx.lineTo(w, lineY + zoneH); ctx.stroke();
   ctx.setLineDash([]);
-
-  // Label
-  ctx.font      = "bold 14px monospace";
-  ctx.fillStyle = moving ? "#ff4444" : "#1ed760";
-  ctx.fillText(armed ? (moving ? "🚨 感測到動作！" : "🟢 偵測中") : "感測線（未啟用）", 10, lineY - 8);
-
-  // Motion bar
+  ctx.font      = "bold 13px monospace";
+  ctx.fillStyle = moving ? "#ff4444" : mc;
+  const label   = armed
+    ? (moving ? "🚨 偵測到！" : (deviceMode === "start" ? "🟢 偵測中（起點）" : "🏁 偵測中（終點）"))
+    : (deviceMode === "start" ? "感測線（起點）" : "感測線（終點）");
+  ctx.fillText(label, 10, lineY - 8);
   const barW = Math.floor((w - 20) * Math.min(motionRatio / 0.3, 1));
-  ctx.fillStyle = "rgba(30,150,255,0.5)";
-  ctx.fillRect(10, lineY + zoneH + 4, barW, 6);
-  ctx.strokeStyle = "#1f77b4";
-  ctx.lineWidth = 1;
-  ctx.strokeRect(10, lineY + zoneH + 4, w - 20, 6);
+  ctx.fillStyle = "rgba(100,150,255,0.5)";
+  ctx.fillRect(10, lineY + zoneH + 4, barW, 5);
+  ctx.strokeStyle = "#555"; ctx.lineWidth = 1;
+  ctx.strokeRect(10, lineY + zoneH + 4, w - 20, 5);
 }
 
-// ── Buttons ──
+// ─── Buttons ─────────────────────────────────────────────────────────────────
 document.getElementById("btnArm").addEventListener("click", () => {
-  armed = true;
-  triggerCount = 0;
-  prevGray = null;
-  statusEl.textContent = "🟢 偵測中 — 等待風帆車通過感測線…";
+  armed = true; triggerCount = 0; prevGray = null;
   document.getElementById("btnArm").disabled    = true;
   document.getElementById("btnDisarm").disabled = false;
+  statusEl.textContent = deviceMode === "start"
+    ? "🟢 偵測中 — 等待風帆車通過起點感測線…"
+    : "🏁 偵測中 — 等待風帆車通過終點感測線…";
   sendToStreamlit({ type: "armed", timestamp: Date.now() });
 });
 
 document.getElementById("btnDisarm").addEventListener("click", () => {
   armed = false;
-  statusEl.textContent = "⛔ 偵測已停用";
   document.getElementById("btnArm").disabled    = false;
   document.getElementById("btnDisarm").disabled = true;
+  statusEl.textContent = "⛔ 偵測已停用";
   sendToStreamlit({ type: "disarmed", timestamp: Date.now() });
 });
 
-document.getElementById("btnStart").addEventListener("click", () => {
-  sendToStreamlit({ type: "manual_start", timestamp: Date.now() });
-  statusEl.textContent = "▶ 手動開始計時";
-});
-
-document.getElementById("btnStop").addEventListener("click", () => {
-  sendToStreamlit({ type: "manual_stop", timestamp: Date.now() });
-  statusEl.textContent = "⏹ 手動停止 / 記圈";
+document.getElementById("btnManual").addEventListener("click", () => {
+  sendToStreamlit({ type: "manual_trigger", timestamp: Date.now() });
+  statusEl.textContent = deviceMode === "start" ? "▶ 手動起點觸發" : "⏹ 手動終點觸發";
 });
 </script>
 </body>
