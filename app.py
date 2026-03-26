@@ -171,6 +171,7 @@ with tab_camera:
             cooldown=cam_cooldown,
             key="cam",
             default=None,
+            height=560,
         )
         if cam_event is not None:
             ev_type = cam_event.get("type")

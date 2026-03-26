@@ -19,12 +19,20 @@
     position: relative;
     width: 100%;
     max-width: 640px;
+    min-height: 240px;
+    background: #111;
+    border-radius: 8px;
   }
 
-  video, canvas {
+  video {
     width: 100%;
     display: block;
     border-radius: 8px;
+    min-height: 240px;
+    background: #111;
+  }
+  canvas {
+    display: block;
   }
   #overlay {
     position: absolute;
@@ -136,9 +144,13 @@ function sendToStreamlit(data) {
   window.parent.postMessage({ isStreamlitMessage: true, type: "streamlit:setComponentValue", value: data }, "*");
 }
 
-// Signal ready
+// Signal ready and report height
 function notifyReady() {
   window.parent.postMessage({ isStreamlitMessage: true, type: "streamlit:componentReady", apiVersion: 1 }, "*");
+}
+function reportHeight() {
+  const h = document.getElementById("container").scrollHeight + 20;
+  window.parent.postMessage({ isStreamlitMessage: true, type: "streamlit:setFrameHeight", height: h }, "*");
 }
 
 // Receive args from Python
@@ -152,6 +164,7 @@ window.addEventListener("message", (ev) => {
 });
 
 notifyReady();
+setTimeout(reportHeight, 200);
 
 // ─── Camera ──────────────────────────────────────────────────────────────────
 const video     = document.getElementById("video");
@@ -180,21 +193,41 @@ document.getElementById("sensitivity").addEventListener("input", updateSens);
 document.getElementById("cooldown").addEventListener("input", updateCooldown);
 
 // ── Start camera ──
-navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment", width: { ideal: 640 }, height: { ideal: 480 } } })
-  .then(stream => {
-    video.srcObject = stream;
-    video.onloadedmetadata = () => {
-      overlay.width  = video.videoWidth  || 640;
-      overlay.height = video.videoHeight || 480;
-      statusEl.textContent = "✅ 相機就緒 — 按「啟用偵測」自動計時";
-      document.getElementById("btnArm").disabled   = false;
-      document.getElementById("btnStart").disabled = false;
-      startLoop();
-    };
-  })
-  .catch(err => {
-    statusEl.textContent = "❌ 無法存取相機：" + err.message;
-  });
+function startCamera(constraints) {
+  navigator.mediaDevices.getUserMedia(constraints)
+    .then(stream => {
+      video.srcObject = stream;
+      video.onloadedmetadata = () => {
+        const vw = video.videoWidth  || 640;
+        const vh = video.videoHeight || 480;
+        video.width  = vw;
+        video.height = vh;
+        overlay.width  = vw;
+        overlay.height = vh;
+        statusEl.textContent = "✅ 相機就緒 — 按「啟用偵測」自動計時";
+        document.getElementById("btnArm").disabled   = false;
+        document.getElementById("btnStart").disabled = false;
+        startLoop();
+        reportHeight();
+      };
+      // Also trigger once stream starts
+      video.onplay = reportHeight;
+    })
+    .catch(err => {
+      if (constraints.video && constraints.video.facingMode) {
+        // Retry without facingMode constraint (for desktop webcams)
+        startCamera({ video: { width: { ideal: 640 }, height: { ideal: 480 } } });
+      } else {
+        statusEl.textContent = "❌ 無法存取相機：" + err.message;
+      }
+    });
+}
+
+if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+  startCamera({ video: { facingMode: { ideal: "environment" }, width: { ideal: 640 }, height: { ideal: 480 } } });
+} else {
+  statusEl.textContent = "❌ 此瀏覽器不支援存取相機（請使用 Chrome / Safari）";
+}
 
 // ── Offscreen canvas for motion detection ──
 const offCanvas = document.createElement("canvas");
