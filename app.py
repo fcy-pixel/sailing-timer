@@ -254,7 +254,7 @@ race = read_race(room_code)
 if race["status"] == "running":
     time.sleep(0.15); st.rerun()
 elif not (start_on and finish_on):
-    time.sleep(5); st.rerun()
+    time.sleep(2); st.rerun()
 
 # ── Results table ─────────────────────────────────────────────────────────────
 if st.session_state.laps:
