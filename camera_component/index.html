@@ -180,6 +180,9 @@ function applyMode() {
 }
 
 // ─── Args from Python ────────────────────────────────────────────────────────
+// ─── Args from Python ────────────────────────────────────────────────────────
+let autoArm = false;
+
 window.addEventListener("message", (ev) => {
   if (ev.data.type === "streamlit:render") {
     const args = ev.data.args || {};
@@ -187,6 +190,7 @@ window.addEventListener("message", (ev) => {
       deviceMode = args.mode;
       applyMode();
     }
+    if (args.auto_arm !== undefined) autoArm = args.auto_arm;
     if (args.line_pos    !== undefined) { document.getElementById("linePos").value    = args.line_pos;    updateLinePos(); }
     if (args.sensitivity !== undefined) { document.getElementById("sensitivity").value = args.sensitivity; updateSens(); }
     if (args.cooldown    !== undefined) { document.getElementById("cooldown").value   = args.cooldown;    updateCooldown(); }
@@ -240,7 +244,12 @@ function startCamera(constraints) {
         overlay.height = video.videoHeight || 480;
         startLoop();
         reportHeight();
-        statusEl.textContent = "✅ 相機就緒 — 按「🟢 啟用偵測」後等待沖線";
+        if (autoArm) {
+          // Finish device: arm immediately, no button press needed
+          document.getElementById("btnArm").click();
+        } else {
+          statusEl.textContent = "✅ 相機就緒 — 按「🟢 啟用偵測」後等待沖線";
+        }
       };
       video.onplay = reportHeight;
     })
@@ -330,6 +339,10 @@ function triggerEvent(ratio) {
   document.getElementById("btnArm").disabled    = false;
   document.getElementById("btnDisarm").disabled = true;
   statusEl.textContent = isStart ? `✅ 起點通過！按「🟢 啟用偵測」開下一次` : `✅ 終點通過！成績已記錄`;
+  // Finish device: re-arm after short delay so it's ready for next attempt
+  if (!isStart && autoArm) {
+    setTimeout(() => { if (!armed) document.getElementById("btnArm").click(); }, 2000);
+  }
 }
 
 function lineColor() {

@@ -207,6 +207,7 @@ cam_event = camera_component(
     line_pos=cam_line_pos,
     sensitivity=cam_sensitivity,
     cooldown=cam_cooldown,
+    auto_arm=not is_start,  # finish device arms automatically
     key="cam",
     default=None,
     height=560,
@@ -240,7 +241,7 @@ if cam_event is not None:
             st.session_state.cam_mode = True
         elif ev_type == "disarmed":
             st.session_state.cam_mode = False
-        elif ev_type == "motion" and st.session_state.cam_mode:
+        elif ev_type == "motion":  # trust JS armed state — no cam_mode guard needed
             if race["status"] == "running" and race["start_time"]:
                 elapsed = time.time() - race["start_time"]
                 _save_lap(elapsed, car_name, route, distance_km)
