@@ -232,6 +232,7 @@ if cam_event is not None:
                 write_race({"status": "running", "start_time": start_t,
                             "last_elapsed": race.get("last_elapsed")}, room_code)
                 st.session_state.trigger_count += 1
+                st.session_state.cam_mode = False  # auto-disarm
                 st.toast("🚀 起點通過！計時開始！", icon="🏃")
                 st.rerun()
     else:
@@ -246,6 +247,7 @@ if cam_event is not None:
                 write_race({"status": "finished", "start_time": race["start_time"],
                             "last_elapsed": elapsed}, room_code)
                 st.session_state.trigger_count += 1
+                st.session_state.cam_mode = False  # auto-disarm
                 st.toast(f"🏁 終點！成績: {fmt(elapsed)}", icon="🎉")
                 st.rerun()
 

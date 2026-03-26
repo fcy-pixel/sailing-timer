@@ -325,11 +325,10 @@ function triggerEvent(ratio) {
   flash.classList.add("flash");
   setTimeout(() => flash.classList.remove("flash"), 300);
   sendToStreamlit({ type: "motion", timestamp: Date.now(), ratio: ratio, count: triggerCount });
-  // Auto-disarm after one trigger
+  // Auto-disarm locally after one trigger (no separate disarmed event — avoids overwriting motion)
   armed = false;
   document.getElementById("btnArm").disabled    = false;
   document.getElementById("btnDisarm").disabled = true;
-  sendToStreamlit({ type: "disarmed", timestamp: Date.now() });
   statusEl.textContent = isStart ? `✅ 起點通過！按「🟢 啟用偵測」開下一次` : `✅ 終點通過！成績已記錄`;
 }
 
