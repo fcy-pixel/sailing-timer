@@ -84,7 +84,7 @@ with st.sidebar:
     distance_km = st.number_input("距離 (km)", min_value=0.0, value=0.1, step=0.01, format="%.3f")
     st.markdown("---")
     st.subheader("📷 偵測設定")
-    cam_line_pos    = st.slider("感測線位置 (%)", 10, 90, 50)
+    cam_line_pos    = st.slider("感測線位置 ↔ (%)", 10, 90, 50)
     cam_sensitivity = st.slider("靈敏度", 5, 80, 25)
     cam_cooldown    = st.slider("冷卻時間 (秒)", 1, 10, 2)
     st.markdown("---")

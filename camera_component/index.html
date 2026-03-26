@@ -134,7 +134,7 @@
   </div>
 
   <div class="slider-row">
-    <label>感測線位置 (↕)</label>
+    <label>感測線位置 (↔)</label>
     <input type="range" id="linePos" min="10" max="90" value="50">
     <span id="linePosVal">50%</span>
   </div>
@@ -312,17 +312,17 @@ function startLoop() {
       const w = overlay.width, h = overlay.height;
       offCanvas.width = w; offCanvas.height = h;
       offCtx.drawImage(video, 0, 0, w, h);
-      const lineY = Math.floor(h * linePct);
-      const zoneH = Math.max(8, Math.floor(h * 0.04));
-      const id    = offCtx.getImageData(0, lineY, w, zoneH);
-      const ratio = motionInZone(id.data, w, zoneH);
+      const lineX = Math.floor(w * linePct);
+      const zoneW = Math.max(8, Math.floor(w * 0.04));
+      const id    = offCtx.getImageData(lineX, 0, zoneW, h);
+      const ratio = motionInZone(id.data, zoneW, h);
       const now   = Date.now();
       if (armed && ratio > 0.06 && (now - lastTrigger) > cooldownMs) {
         lastTrigger = now;
         triggerCount++;
         triggerEvent(ratio);
       }
-      drawOverlay(lineY, zoneH, ratio, h, w);
+      drawOverlay(lineX, zoneW, ratio, h, w);
     }
     animId = requestAnimationFrame(loop);
   }
@@ -348,35 +348,35 @@ function lineColor() {
   return deviceMode === "start" ? "#2ecc71" : "#e67e22";
 }
 
-function drawOverlay(lineY, zoneH, motionRatio, h, w) {
-  if (lineY === undefined) {
+function drawOverlay(lineX, zoneW, motionRatio, h, w) {
+  if (lineX === undefined) {
     w = overlay.width; h = overlay.height;
-    lineY = Math.floor(h * linePct);
-    zoneH = Math.max(8, Math.floor(h * 0.04));
+    lineX = Math.floor(w * linePct);
+    zoneW = Math.max(8, Math.floor(w * 0.04));
     motionRatio = 0;
   }
   ctx.clearRect(0, 0, w, h);
   const moving = armed && motionRatio > 0.06;
   const mc = lineColor();
   ctx.fillStyle = moving ? "rgba(255,80,80,0.25)" : (deviceMode === "start" ? "rgba(46,204,113,0.1)" : "rgba(230,126,34,0.12)");
-  ctx.fillRect(0, lineY, w, zoneH);
+  ctx.fillRect(lineX, 0, zoneW, h);
   ctx.strokeStyle = moving ? "#ff4444" : mc;
   ctx.lineWidth   = 3;
   ctx.setLineDash([12, 6]);
-  ctx.beginPath(); ctx.moveTo(0, lineY); ctx.lineTo(w, lineY); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(0, lineY + zoneH); ctx.lineTo(w, lineY + zoneH); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(lineX, 0); ctx.lineTo(lineX, h); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(lineX + zoneW, 0); ctx.lineTo(lineX + zoneW, h); ctx.stroke();
   ctx.setLineDash([]);
   ctx.font      = "bold 13px monospace";
   ctx.fillStyle = moving ? "#ff4444" : mc;
   const label   = armed
     ? (moving ? "🚨 偵測到！" : (deviceMode === "start" ? "🟢 偵測中（起點）" : "🏁 偵測中（終點）"))
     : (deviceMode === "start" ? "感測線（起點）" : "感測線（終點）");
-  ctx.fillText(label, 10, lineY - 8);
-  const barW = Math.floor((w - 20) * Math.min(motionRatio / 0.3, 1));
+  ctx.fillText(label, lineX + zoneW + 6, 20);
+  const barH = Math.floor((h - 20) * Math.min(motionRatio / 0.3, 1));
   ctx.fillStyle = "rgba(100,150,255,0.5)";
-  ctx.fillRect(10, lineY + zoneH + 4, barW, 5);
+  ctx.fillRect(lineX + zoneW + 4, h - 10 - barH, 5, barH);
   ctx.strokeStyle = "#555"; ctx.lineWidth = 1;
-  ctx.strokeRect(10, lineY + zoneH + 4, w - 20, 5);
+  ctx.strokeRect(lineX + zoneW + 4, 10, 5, h - 20);
 }
 
 // ─── Buttons ─────────────────────────────────────────────────────────────────
